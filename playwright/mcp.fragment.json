@@ -1,0 +1,9 @@
+{ "mcpServers": {
+  "playwright": { "command": "run-limited",
+    "args": ["2G", "npx", "playwright", "mcp", "--browser", "chromium",
+      "--headless", "--isolated",
+      "--proxy-server", "http://127.0.0.1:9",
+      "--proxy-bypass", "127.0.0.1,localhost,.localhost",
+      "--allowed-origins", "http://127.0.0.1:3000;http://localhost:3000",
+      "--output-dir", "test-results/mcp"] }
+} }

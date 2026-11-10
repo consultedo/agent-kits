@@ -1,0 +1,26 @@
+{
+  "mcp": { "servers": {
+    "rea": { "type": "local",
+      "command": ["run-limited", "3G", "rea", "--mcp"],
+      "environment": {
+        "JAVA_HOME": "/usr/lib/jvm/java-21-openjdk-amd64",
+        "GHIDRA_INSTALL_DIR": "/opt/ghidra_12.1.4_PUBLIC" } }
+  } },
+  "permissions": [
+    { "action": "rea_*frida*",  "resource": "*", "effect": "deny" },
+    { "action": "rea_*gdb*",    "resource": "*", "effect": "deny" },
+    { "action": "rea_*rizin*",  "resource": "*", "effect": "deny" },
+    { "action": "rea_*cutter*", "resource": "*", "effect": "deny" },
+    { "action": "rea_*adb*",    "resource": "*", "effect": "deny" },
+    { "action": "rea_capture_*","resource": "*", "effect": "deny" },
+    { "action": "rea_observe_*","resource": "*", "effect": "deny" },
+    { "action": "rea_list_browser_targets",        "resource": "*", "effect": "deny" },
+    { "action": "rea_inspect_web_page",            "resource": "*", "effect": "deny" },
+    { "action": "rea_analyze_web_bundle",          "resource": "*", "effect": "deny" },
+    { "action": "rea_discover_webmcp_tools",       "resource": "*", "effect": "deny" },
+    { "action": "rea_inspect_web_event_listeners", "resource": "*", "effect": "deny" },
+    { "action": "rea_list_electron_targets",       "resource": "*", "effect": "deny" },
+    { "action": "rea_inspect_electron_page",       "resource": "*", "effect": "deny" },
+    { "action": "rea_list_javascript_runtime_targets", "resource": "*", "effect": "deny" }
+  ]
+}
