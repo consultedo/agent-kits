@@ -1,0 +1,43 @@
+name: Promote workflow drafts
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  promote:
+    if: github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.WORKFLOW_PAT }}
+
+      - name: Copy drafts into workflows
+        run: |
+          shopt -s nullglob
+          files=(workflow-drafts/*.yml workflow-drafts/*.yaml)
+          if [ ${#files[@]} -eq 0 ]; then
+            echo "No drafts found."
+            exit 1
+          fi
+          mkdir -p .github/workflows
+          for f in "${files[@]}"; do
+            name=$(basename "$f")
+            if [ "$name" = "promote-workflows.yml" ]; then
+              echo "Refusing to overwrite the promote workflow."
+              exit 1
+            fi
+            cp "$f" .github/workflows/
+            git rm -q "$f"
+          done
+
+      - name: Commit and push
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add .github/workflows
+          git commit -m "Promote workflow drafts"
+          git push

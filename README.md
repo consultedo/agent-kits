@@ -8,6 +8,7 @@ Clone and run `./agent-kit list`, or symlink `agent-kit` into your `PATH`
 |---|---|
 | `playwright` | Playwright e2e setup: config (egress lock, 1 worker, artifacts on failure), seed test, `specs/`, Planner/Generator/Healer agents, Playwright MCP servers for OpenCode and Claude Code |
 | `rea` | Static reverse-engineering: REA MCP server (rea-agents, Ghidra, JDK), REA skill, `targets/` folder; runtime/debugger/Frida/ADB/browser/Rizin tools denied by design |
+| `workflow-promote` | GitHub Actions draft-then-promote flow: agent writes to `workflow-drafts/`, you promote via a manual "Promote workflow drafts" run that copies them into `.github/workflows/` |
 
 ## Kit layout contract
 
