@@ -1,6 +1,5 @@
 # Kit: workflow-promote
-Adds: a `Promote workflow drafts` template, agent rules for a draft-then-promote
-flow, and nothing else (no dependencies, no config fragments).
+Adds: a `Promote workflow drafts` template and agent rules for a draft-then-promote flow (agent writes to `workflow-drafts/`, you promote via a manual Actions run). No dependencies, no config fragments.
 The agent writes workflows to `workflow-drafts/` (pushable); you review them,
 then run the Actions workflow "Promote workflow drafts" (workflow_dispatch, on
 the default branch) to copy them into `.github/workflows/` with your own

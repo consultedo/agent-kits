@@ -36,7 +36,12 @@ do_update() {
 
 cmd="${1:-}"; kit="${2:-}"
 case "$cmd" in
-  list) ensure_kits; find "$KITS" -mindepth 1 -maxdepth 1 -type d ! -name '.*' -printf '%f\n' | sort; exit 0 ;;
+  list) ensure_kits; find "$KITS" -mindepth 1 -maxdepth 1 -type d ! -name '.*' | sort | while read -r d; do
+    kit=${d##*/}
+    sum=$(awk '!/^#/ && NF {print; exit}' "$d/README.md" 2>/dev/null || true)
+    [ "${#sum}" -gt 120 ] && sum="${sum:0:117}..."
+    if [ -n "$sum" ]; then printf '%s - %s\n' "$kit" "$sum"; else echo "$kit"; fi
+  done; exit 0 ;;
   update) do_update; exit 0 ;;
   add|remove) [ -n "$kit" ] || usage; ensure_kits ;;
   *) usage ;;

@@ -22,6 +22,8 @@ A kit folder may contain any of (existing project files are never overwritten):
 - `gitignore.fragment` — lines appended to `./.gitignore`
 - `agents.md` — block appended to `./AGENTS.md`
 - `hooks.sh` — optional `kit_post_add` / `kit_pre_remove` shell functions
+- `README.md` — short doc for the kit; its first non-header, non-empty line is
+  the one-line summary shown by `agent-kit list` (keep it to one line)
 
 See `agent-kit` usage: `agent-kit list | update | add <kit> | remove <kit>`
 from a checkout of this repo (the script clones/updates this repo into
