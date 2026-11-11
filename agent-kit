@@ -1,0 +1,143 @@
+#!/usr/bin/env bash
+# agent-kit: add or remove a project kit from the public agent-kits repo
+# (https://github.com/consultedo/agent-kits), cached locally on first use.
+# A kit is a folder in $KITS with any of:
+#   files/                         copied into the repo (existing files are never overwritten)
+#   opencode.fragment.json         merged into ./opencode.json          (OpenCode v2)
+#   mcp.fragment.json              merged into ./.mcp.json              (Claude Code)
+#   claude-settings.fragment.json  merged into ./.claude/settings.json  (Claude Code)
+#   claude-servers.txt             MCP names pre-approved in ~/.claude/settings.json
+#   gitignore.fragment             lines appended to ./.gitignore
+#   agents.md                      block appended to ./AGENTS.md (CLAUDE.md imports it)
+#   hooks.sh                       optional kit_post_add / kit_pre_remove shell functions
+set -euo pipefail
+KITS="${AGENT_KITS_DIR:-$HOME/.local/share/agent-kits}"
+REPO="${AGENT_KITS_REPO:-https://github.com/consultedo/agent-kits.git}"
+REF="${AGENT_KITS_REF:-main}"
+die() { echo "agent-kit: $*" >&2; exit 1; }
+usage() { echo "usage: agent-kit list | update | add <kit> | remove <kit>" >&2; exit 2; }
+
+ensure_kits() { # clone the kits repo on first use ("pull when needed")
+  [ -d "$KITS/.git" ] && return 0
+  [ -e "$KITS" ] && die "$KITS exists but is not a kits checkout; move it aside or set AGENT_KITS_DIR"
+  echo "Fetching kits from $REPO ($REF) ..."
+  git clone -q --depth 1 --branch "$REF" "$REPO" "$KITS" \
+    || die "clone failed; check network access, or set AGENT_KITS_DIR to a local kits checkout"
+}
+do_update() {
+  if [ -d "$KITS/.git" ]; then
+    git -C "$KITS" pull -q --ff-only 2>/dev/null \
+      || die "$KITS cache diverged; remove it to re-fetch: rm -rf '$KITS'"
+  else
+    ensure_kits
+  fi
+  echo "Kits at $(git -C "$KITS" rev-parse --short HEAD) from $REPO ($REF)"
+}
+
+cmd="${1:-}"; kit="${2:-}"
+case "$cmd" in
+  list) ensure_kits; find "$KITS" -mindepth 1 -maxdepth 1 -type d ! -name '.*' -printf '%f\n' | sort; exit 0 ;;
+  update) do_update; exit 0 ;;
+  add|remove) [ -n "$kit" ] || usage; ensure_kits ;;
+  *) usage ;;
+esac
+K="$KITS/$kit"; [ -d "$K" ] || die "no such kit: $kit (try: agent-kit list)"
+ROOT=$(git rev-parse --show-toplevel 2>/dev/null) || die "run this inside a git repository"
+cd "$ROOT"
+if [ -f opencode.jsonc ] && [ -f "$K/opencode.fragment.json" ]; then
+  die "opencode.jsonc exists; agent-kit manages opencode.json (plain JSON). Merge by hand or convert it."
+fi
+
+# Deep merge: objects recurse, arrays append missing items (order kept), scalars overwrite.
+JQ_MERGE='def m($a;$b): reduce ($b|keys_unsorted[]) as $k ($a;
+  if ($a[$k]|type)=="object" and ($b[$k]|type)=="object" then .[$k]=m($a[$k];$b[$k])
+  elif ($a[$k]|type)=="array" and ($b[$k]|type)=="array" then .[$k]=($a[$k]+($b[$k]-$a[$k]))
+  else .[$k]=$b[$k] end); m(.[0];.[1])'
+# Deep subtract: remove what the fragment added; drop containers that become empty.
+JQ_SUB='def s($a;$b): reduce ($b|keys_unsorted[]) as $k ($a;
+  if ($a[$k]|type)=="object" and ($b[$k]|type)=="object" and ([$b[$k][]|type]|all(.=="object" or .=="array"))
+    then .[$k]=s($a[$k];$b[$k]) | (if (.[$k]|length)==0 then del(.[$k]) else . end)
+  elif ($a[$k]|type)=="array" and ($b[$k]|type)=="array"
+    then .[$k]=($a[$k]-$b[$k]) | (if (.[$k]|length)==0 then del(.[$k]) else . end)
+  else del(.[$k]) end); s(.[0];.[1])'
+
+json_apply() { # op file fragment [schema]
+  local op=$1 file=$2 frag=$3 schema=${4:-} prog
+  [ -f "$frag" ] || return 0
+  if [ ! -f "$file" ]; then
+    [ "$op" = add ] || return 0
+    mkdir -p "$(dirname "$file")"
+    if [ -n "$schema" ]; then printf '{"$schema":"%s"}\n' "$schema" > "$file"; else echo '{}' > "$file"; fi
+  fi
+  if [ "$op" = add ]; then prog=$JQ_MERGE; else prog=$JQ_SUB; fi
+  jq -s "$prog" "$file" "$frag" > "$file.tmp"     # set -e: a jq error aborts here
+  mv "$file.tmp" "$file"
+  echo "  $op: $file"
+}
+files_add() {
+  [ -d "$K/files" ] || return 0
+  (cd "$K/files" && find . \( -type f -o -type l \) | sort) | while read -r f; do
+    f=${f#./}
+    if [ -e "$f" ]; then echo "  kept existing: $f"
+    else mkdir -p "$(dirname "$f")"; cp -P "$K/files/$f" "$f"; echo "  added: $f"; fi
+  done
+}
+files_remove() {
+  [ -d "$K/files" ] || return 0
+  (cd "$K/files" && find . -type f | sort) | while read -r f; do
+    f=${f#./}
+    if [ -f "$f" ] && cmp -s "$f" "$K/files/$f"; then rm "$f"; echo "  removed: $f"
+    elif [ -e "$f" ]; then echo "  kept (modified): $f"; fi
+  done
+  (cd "$K/files" && find . -mindepth 1 -type d | sort -r) | while read -r d; do rmdir "${d#./}" 2>/dev/null || true; done
+}
+gitignore_add() {
+  [ -f "$K/gitignore.fragment" ] || return 0
+  touch .gitignore
+  while read -r l; do
+    if [ -n "$l" ] && ! grep -qxF "$l" .gitignore; then echo "$l" >> .gitignore; fi
+  done < "$K/gitignore.fragment"
+}
+agents_md() { # add|remove
+  [ -f "$K/agents.md" ] || return 0
+  local b="<!-- agent-kit:$kit begin -->" e="<!-- agent-kit:$kit end -->"
+  touch AGENTS.md
+  sed -i "/^$b\$/,/^$e\$/d" AGENTS.md
+  if [ "$1" = add ]; then
+    { echo "$b"; cat "$K/agents.md"; echo "$e"; } >> AGENTS.md
+    grep -qsx '@AGENTS.md' CLAUDE.md || echo '@AGENTS.md' >> CLAUDE.md
+  fi
+  echo "  $1: AGENTS.md section"
+}
+claude_servers() {
+  [ -f "$K/claude-servers.txt" ] || return 0
+  local s="$HOME/.claude/settings.json"; [ -f "$s" ] || echo '{}' > "$s"
+  jq --rawfile n "$K/claude-servers.txt" \
+    '.enabledMcpjsonServers = ((.enabledMcpjsonServers // []) + (($n|split("\n")|map(select(length>0))) - (.enabledMcpjsonServers // [])))' \
+    "$s" > "$s.tmp"
+  mv "$s.tmp" "$s"; chmod 600 "$s"
+}
+
+if [ -f "$K/hooks.sh" ]; then . "$K/hooks.sh"; fi
+
+if [ "$cmd" = add ]; then
+  echo "Adding kit '$kit' to $ROOT"
+  files_add
+  json_apply add opencode.json "$K/opencode.fragment.json" "https://opencode.ai/config.json"
+  json_apply add .mcp.json "$K/mcp.fragment.json"
+  json_apply add .claude/settings.json "$K/claude-settings.fragment.json"
+  gitignore_add
+  agents_md add
+  claude_servers
+  if declare -F kit_post_add >/dev/null; then kit_post_add; fi
+  echo "Done. Review with: git status && git diff"
+else
+  echo "Removing kit '$kit' from $ROOT"
+  if declare -F kit_pre_remove >/dev/null; then kit_pre_remove; fi
+  json_apply remove opencode.json "$K/opencode.fragment.json"
+  json_apply remove .mcp.json "$K/mcp.fragment.json"
+  json_apply remove .claude/settings.json "$K/claude-settings.fragment.json"
+  files_remove
+  agents_md remove
+  echo "Done. .gitignore lines and global MCP pre-approvals are left in place."
+fi

@@ -1,8 +1,8 @@
 # agent-kits
 
-Public collection of agent kits. Each kit is one folder; add it to a project with
-[`agent-kit`](https://github.com/consultedo/agent-server-config) (`agent-kit add <name>`),
-which fetches this repo on demand and caches it locally.
+Public collection of agent kits, plus the `agent-kit` script that installs them.
+Clone and run `./agent-kit list`, or symlink `agent-kit` into your `PATH`
+(`agent-server-config` does this automatically during setup).
 
 | Kit | Adds |
 |---|---|
@@ -22,7 +22,9 @@ A kit folder may contain any of (existing project files are never overwritten):
 - `agents.md` — block appended to `./AGENTS.md`
 - `hooks.sh` — optional `kit_post_add` / `kit_pre_remove` shell functions
 
-See `agent-kit` usage: `agent-kit list | update | add <kit> | remove <kit>`.
+See `agent-kit` usage: `agent-kit list | update | add <kit> | remove <kit>`
+from a checkout of this repo (the script clones/updates this repo into
+`~/.local/share/agent-kits` on first use).
 `update` refreshes the local cache from here. Pin a version with
 `AGENT_KITS_REF` (branch or tag, default `main`); point at a fork or local
 checkout with `AGENT_KITS_REPO` / `AGENT_KITS_DIR`.
