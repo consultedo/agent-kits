@@ -32,3 +32,12 @@ checkout with `AGENT_KITS_REPO` / `AGENT_KITS_DIR`.
 One folder per kit, same contract as above. Keep kits additive and
 non-destructive: never overwrite, keep `remove` clean, document follow-ups in
 the kit's `README.md`.
+
+## License
+
+MIT — see [LICENSE](LICENSE) (© 2026 consultedo).
+
+Attribution: the `rea` kit vendors the `reverse-engineer-anything` skill files
+verbatim from the [`rea-agents`](https://github.com/morluto/rea) npm package
+(v6.8.0), © 2026 morluto, also MIT. If you refresh the skill from a newer
+`rea-agents`, keep this notice and check the upstream license still permits it.
